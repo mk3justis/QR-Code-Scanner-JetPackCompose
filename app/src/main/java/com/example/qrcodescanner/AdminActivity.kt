@@ -110,7 +110,8 @@ class AdminActivity : ComponentActivity() {
                                 bitmap = image,
                                 contentDescription = "QR Code",
                                 modifier = Modifier
-                                    .fillMaxSize()
+                                    .fillMaxWidth()
+                                    .fillMaxHeight(.5f)
                                     .padding(32.dp, 32.dp)
                             )
                         }
@@ -126,7 +127,7 @@ class AdminActivity : ComponentActivity() {
                             label = { Text(text = "Enter description") },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .fillMaxHeight(),
+                                .fillMaxHeight(.4f),
                             keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
                             keyboardActions = KeyboardActions(onDone = {
                                 focusManager.clearFocus()
