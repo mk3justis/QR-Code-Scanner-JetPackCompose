@@ -6,18 +6,30 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.util.Log
+import android.util.Size
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContract
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageAnalysis.BackpressureStrategy
 import androidx.camera.core.ImageCapture.OnImageCapturedCallback
 import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview
 import androidx.camera.core.ImageProxy
+import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.AndroidEmbeddedExternalSurface
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+
 
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -44,17 +56,22 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -70,158 +87,173 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             QRCodeScannerTheme {
-                val controller = remember {
+                /*val controller = remember {
                     LifecycleCameraController(applicationContext).apply {
                         setEnabledUseCases(
                             CameraController.IMAGE_CAPTURE or
                                     CameraController.IMAGE_ANALYSIS
                         )
                     }
+                }*/
+                var code by remember {
+                    mutableStateOf("")
+                }
+                val context = LocalContext.current
+                val lifecycleOwner = LocalLifecycleOwner.current
+                val cameraProviderFuture = remember {
+                    ProcessCameraProvider.getInstance(context)
+                }
+                var hasCamPermission by remember {
+                    mutableStateOf(
+                        ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.CAMERA
+                        ) == PackageManager.PERMISSION_GRANTED
+                    )
+                }
+                val launcher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.RequestPermission(),
+                    onResult = { granted ->
+                        hasCamPermission = granted
+                    }
+                )
+                LaunchedEffect(key1 = true){
+                    launcher.launch(Manifest.permission.CAMERA)
                 }
 
-                val viewModel = viewModel<MainViewModel>()
-                val bitmap by viewModel.bitmap.collectAsState()
+                /*val viewModel = viewModel<MainViewModel>()
+                val bitmap by viewModel.bitmap.collectAsState()*/
                 Column(
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier
+                        .fillMaxHeight()
                 ) {
-                    Box(
+                    Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .fillMaxHeight(.5f)
+                            .fillMaxHeight(.45f)
                             .background(Color.DarkGray)
                     ) {
-                        CameraPreview(
-                            controller = controller,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .fillMaxHeight()
-                                .align(Alignment.TopCenter)
-                        )
-
-                        IconButton(
-                            onClick = {
-                                controller.cameraSelector =
-                                    if (controller.cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
-                                        CameraSelector.DEFAULT_FRONT_CAMERA
-                                    } else CameraSelector.DEFAULT_BACK_CAMERA
-                            },
-                            modifier = Modifier
-                                .offset(2.dp, 2.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Cameraswitch,
-                                contentDescription = "Switch camera"
+                        if (hasCamPermission) {
+                            AndroidView(
+                                factory = { context ->
+                                    val previewView = PreviewView(context)
+                                    val preview = Preview.Builder().build()
+                                    val selector = CameraSelector.Builder()
+                                        .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                                        .build()
+                                    preview.setSurfaceProvider(previewView.surfaceProvider)
+                                    val imageAnalysis = ImageAnalysis.Builder()
+                                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                        .build()
+                                    imageAnalysis.setAnalyzer(
+                                        ContextCompat.getMainExecutor(context),
+                                        QRCodeAnalyzer { result ->
+                                            code = result
+                                        }
+                                    )
+                                    try {
+                                        cameraProviderFuture.get().bindToLifecycle(
+                                            lifecycleOwner,
+                                            selector,
+                                            preview,
+                                            imageAnalysis
+                                        )
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                    previewView
+                                }
                             )
                         }
-                        Row(
+                    }
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .align(Alignment.BottomCenter)
-                                .padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceAround
+                                .fillMaxHeight(1f)
+                                .background(Color.Gray)
                         ) {
-                            IconButton(
-                                modifier = Modifier,
-                                onClick = {
-                                    takePhoto(
-                                        controller = controller,
-                                        onPhotoTaken = viewModel::onTakePhoto
-                                    )
-                                }
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.PhotoCamera,
-                                    contentDescription = "Take photo"
-                                )
-                            }
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .fillMaxHeight()
-                            .background(Color.Gray)
-                        ,
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxHeight(),
-                            verticalArrangement = Arrangement.Top
-                        ) {
-                            Row(
+                            Column(
                                 modifier = Modifier
-                                    .fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                    .fillMaxHeight(),
+                                verticalArrangement = Arrangement.Top
                             ) {
-                                Text(
-                                    text = "Name",
-                                    color = Color.Black,
-                                    style = TextStyle(fontSize = 40.sp),
+                                Row(
                                     modifier = Modifier
-                                        .padding(8.dp)
-                                )
-                                IconButton(
-                                    onClick = {
-
-                                    },
-                                    modifier = Modifier
-                                        .offset(8.dp, 0.dp)
+                                        .fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Report,
-                                        contentDescription = "Report Misinformation"
+                                    Text(
+                                        text = "Description",
+                                        color = Color.Black,
+                                        style = TextStyle(fontSize = 32.sp),
+                                        modifier = Modifier
+                                            .padding(8.dp)
                                     )
-                                }
-                            }
+                                    IconButton(
+                                        onClick = {
 
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "Description",
-                                    color = Color.Black,
-                                    style = TextStyle(fontSize = 16.sp),
+                                        },
+                                        modifier = Modifier
+                                            .offset(8.dp, 0.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Report,
+                                            contentDescription = "Report Misinformation"
+                                        )
+                                    }
+                                }
+
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(8.dp)
-                                )
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .fillMaxHeight()
-                                    .weight(1f, false),
-                                verticalAlignment = Alignment.Bottom
-                            ) {
-                                IconButton(
-                                    onClick = {
-
-                                    },
-                                    modifier = Modifier
-                                        .weight(1f),
+                                        .fillMaxHeight(.85f)
+                                        .border(2.dp, Color.Black),
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Settings,
-                                        contentDescription = "Settings"
+                                    Text(
+                                        text = code,
+                                        color = Color.Black,
+                                        style = TextStyle(fontSize = 16.sp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(8.dp)
                                     )
                                 }
-                                IconButton(
-                                    onClick = {
-                                        val navigate = Intent(this@MainActivity, AdminActivity::class.java)
-                                        startActivity(navigate)
-                                    },
+                                Row(
                                     modifier = Modifier
-                                        .weight(1f),
+                                        .fillMaxWidth()
+                                        .fillMaxHeight()
+                                        .weight(1f, false),
+                                    verticalAlignment = Alignment.Bottom
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Shield,
-                                        contentDescription = "Admin Page"
-                                    )
+                                    IconButton(
+                                        onClick = {
+
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Settings,
+                                            contentDescription = "Settings"
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            val navigate =
+                                                Intent(this@MainActivity, AdminActivity::class.java)
+                                            startActivity(navigate)
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f),
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Shield,
+                                            contentDescription = "Admin Page"
+                                        )
+                                    }
                                 }
                             }
                         }
-                    }
                 }
             }
         }

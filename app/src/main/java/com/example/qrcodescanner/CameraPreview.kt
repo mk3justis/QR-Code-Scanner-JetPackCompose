@@ -1,5 +1,5 @@
 package com.example.qrcodescanner
-
+/*
 import android.graphics.Camera
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
@@ -23,4 +23,4 @@ fun CameraPreview(
         },
         modifier = Modifier
     )
-}
+}*/
