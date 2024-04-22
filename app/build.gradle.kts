@@ -58,6 +58,9 @@ dependencies {
     implementation("androidx.camera:camera-extensions:$cameraXVersion")
 
     implementation("androidx.compose.material:material-icons-extended:1.6.6")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+
+    implementation("com.google.zxing:core:3.4.1")
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
