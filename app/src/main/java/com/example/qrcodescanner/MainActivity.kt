@@ -191,7 +191,9 @@ class MainActivity : ComponentActivity() {
                                     )
                                     IconButton(
                                         onClick = {
-
+                                            val navigate =
+                                                Intent(this@MainActivity, ReportActivity::class.java)
+                                            startActivity(navigate)
                                         },
                                         modifier = Modifier
                                             .offset(8.dp, 0.dp)
@@ -227,7 +229,9 @@ class MainActivity : ComponentActivity() {
                                 ) {
                                     IconButton(
                                         onClick = {
-
+                                            val navigate =
+                                                Intent(this@MainActivity, SettingsActivity::class.java)
+                                            startActivity(navigate)
                                         },
                                         modifier = Modifier
                                             .weight(1f),
